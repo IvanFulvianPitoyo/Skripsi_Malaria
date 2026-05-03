@@ -42,7 +42,7 @@ Pembimbing yang terhormat, berikut adalah dua catatan penting terkait konfiguras
 Agar model ini dapat diuji coba di komputer Bapak Pembimbing, silakan ikuti langkah-langkah berikut:
 
 **Prasyarat (Requirements)**
-1. Komputer sudah terinstal Python 3.8 atau lebih baru.
+1. Komputer sudah terinstal Python 3.12.3 atau lebih baru.
 2. Terdapat aplikasi Terminal (Command Prompt) atau IDE seperti Visual Studio Code (VS Code).
 3. Untuk sekadar pengujian deteksi (inferensi gambar), CPU standar tanpa kartu grafis NVIDIA sudah memadai.
 
