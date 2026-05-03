@@ -26,17 +26,23 @@ if not sumber_gambar:
 else:
     print(f"✅ Gambar terpilih: {sumber_gambar}")
     
-    # 4. Tentukan lokasi model (pastikan ada di folder models)
-    path_model = os.path.join('models', 'yolo26m.pt')
+    # 4. Tentukan lokasi model secara dinamis (Anti-Gagal)
+    # Ini akan mencari tahu secara otomatis di mana file uji_model.py ini berada
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Lalu menggabungkannya dengan folder 'models' dan file 'yolov8m.pt'
+    path_model = os.path.join(script_dir, 'models', 'yolov8m.pt')
     
     if not os.path.exists(path_model):
-        print(f"❌ Error: Model tidak ditemukan di lokasi '{path_model}'. Pastikan struktur folder sudah benar.")
+        print(f"❌ Error: Model tidak ditemukan di lokasi absolut: '{path_model}'")
+        print("Pastikan file 'yolov8m.pt' benar-benar ada di dalam folder 'models' yang sejajar dengan file skrip ini.")
     else:
+        print(f"✅ Model berhasil ditemukan!")
         print("⏳ Memuat model YOLOv8m dan memproses gambar...")
-        model = YOLO(path_model)
         
         # 5. Eksekusi proses deteksi
+        model = YOLO(path_model)
         hasil = model.predict(source=sumber_gambar, show=True, save=True)
         
         print("\n🎉 Deteksi berhasil diselesaikan!")
-        print("📁 Gambar hasil inferensi (kotak merah) otomatis disimpan di dalam folder 'runs/detect/predict'.")
+        print("📁 Gambar hasil inferensi otomatis disimpan di dalam folder 'runs/detect/predict'.")
