@@ -1,0 +1,176 @@
+import os
+import yaml
+import optuna
+from ultralytics import YOLO
+from multiprocessing import freeze_support
+
+# ==============================
+# PATH SETTING
+# ==============================
+dataset_path = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\datasets\malaria"
+project_save_path = r"D:\Skripsi_Malaria_Output"
+yaml_path = os.path.join(dataset_path, "malaria.yaml")
+
+# ==============================
+# TARGET SETTING
+# ==============================
+TARGET_MAP50 = 0.90
+MAX_TOTAL_TRIALS = 100  # Batas maksimal trial supaya tidak infinite
+
+# ==============================
+# OBJECTIVE FUNCTION
+# ==============================
+def objective(trial):
+
+    # Search space
+    lr0 = trial.suggest_float("lr0", 1e-5, 1e-2, log=True)
+    lrf = trial.suggest_float("lrf", 0.001, 0.1, log=True)
+    weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    warmup_epochs = trial.suggest_float("warmup_epochs", 1.0, 8.0)
+    warmup_momentum = trial.suggest_float("warmup_momentum", 0.5, 0.95)
+    scale = trial.suggest_float("scale", 0.3, 0.7)
+    erasing = trial.suggest_float("erasing", 0.2, 0.6)
+    degrees = trial.suggest_int("degrees", 90, 180)
+
+    print(f"\n🔎 Trial {trial.number} dimulai...")
+
+    model = YOLO("yolov8m.pt")
+
+    results = model.train(
+        data=yaml_path,
+        epochs=100,
+        imgsz=640,
+        batch=16,
+        device=0,
+        workers=6,
+        optimizer="AdamW",
+        lr0=lr0,
+        lrf=lrf,
+        cos_lr=True,
+        warmup_epochs=warmup_epochs,
+        warmup_momentum=warmup_momentum,
+        weight_decay=weight_decay,
+        fliplr=0.5,
+        flipud=0.5,
+        degrees=degrees,
+        scale=scale,
+        erasing=erasing,
+        cache=False,
+        plots=False,
+        verbose=False,
+        project=project_save_path,
+        name=f"optuna_trial_{trial.number}"
+    )
+
+    # Ambil metrik
+    map50 = results.results_dict["metrics/mAP50(B)"]
+    map50_95 = results.results_dict["metrics/mAP50-95(B)"]
+
+    # Simpan mAP50 ke trial
+    trial.set_user_attr("map50", map50)
+
+    print(f"✅ Trial {trial.number} mAP50: {map50}")
+    print(f"✅ Trial {trial.number} mAP50-95: {map50_95}")
+
+    return map50_95  # tetap optimasi berdasarkan mAP50-95
+
+
+# ==============================
+# MAIN FUNCTION
+# ==============================
+def run_optuna_training():
+
+    print("🚀 MENJALANKAN OPTUNA HYPERPARAMETER SEARCH...")
+
+    # Buat YAML dataset
+    yaml_content = {
+        'path': dataset_path,
+        'train': 'images/train',
+        'val': 'images/val',
+        'names': {0: 'P.falciparum', 1: 'P.vivax'}
+    }
+
+    with open(yaml_path, 'w') as f:
+        yaml.dump(yaml_content, f, default_flow_style=False)
+
+    # Persistent study
+    sampler = optuna.samplers.TPESampler(seed=42)
+
+    study = optuna.create_study(
+        study_name="malaria_yolo_study",
+        direction="maximize",
+        storage="sqlite:///malaria_yolo_study.db",
+        load_if_exists=True,
+        sampler=sampler
+    )
+
+    print(f"📊 Total trial yang sudah ada: {len(study.trials)}")
+
+    # ==============================
+    # LOOP SAMPAI TARGET 90%
+    # ==============================
+    while True:
+
+        study.optimize(objective, n_trials=5)
+
+        best_trial = study.best_trial
+        best_map50 = best_trial.user_attrs.get("map50", 0)
+
+        print(f"\n🏆 Best mAP50 saat ini: {best_map50}")
+
+        if best_map50 >= TARGET_MAP50:
+            print("🎯 Target mAP50 ≥ 90% tercapai!")
+            break
+
+        if len(study.trials) >= MAX_TOTAL_TRIALS:
+            print("⚠️ Sudah mencapai batas maksimum trial.")
+            print("Target 90% tidak tercapai.")
+            return
+
+        print("Belum mencapai 90%, lanjut trial lagi...\n")
+
+    # ==============================
+    # TRAINING FINAL
+    # ==============================
+    print("\n🔥 TRAINING FINAL MODEL...")
+
+    best_params = study.best_params
+    model = YOLO("yolov8m.pt")
+
+    model.train(
+        data=yaml_path,
+        epochs=100,
+        imgsz=640,
+        batch=16,
+        device=0,
+        workers=6,
+        optimizer="AdamW",
+        lr0=best_params["lr0"],
+        lrf=best_params["lrf"],
+        cos_lr=True,
+        warmup_epochs=best_params["warmup_epochs"],
+        warmup_momentum=best_params["warmup_momentum"],
+        weight_decay=best_params["weight_decay"],
+        fliplr=0.5,
+        flipud=0.5,
+        degrees=best_params["degrees"],
+        scale=best_params["scale"],
+        erasing=best_params["erasing"],
+        project=project_save_path,
+        name="Training_Final_Optuna_Best",
+        save=True,
+        plots=True,
+        patience=30,
+        cache=False
+    )
+
+    print("\n🎉 TRAINING SELESAI!")
+    print(f"📁 Output tersimpan di: {project_save_path}")
+
+
+# ==============================
+# ENTRY POINT
+# ==============================
+if __name__ == "__main__":
+    freeze_support()
+    run_optuna_training()
