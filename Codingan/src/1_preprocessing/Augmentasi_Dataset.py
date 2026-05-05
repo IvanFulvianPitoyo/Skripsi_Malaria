@@ -49,7 +49,7 @@ def augment_data():
 
     count = 0
     for img_name, lbl_path in tqdm(falciparum_files):
-        img_path = os.path.join(images_dir, img_name)
+        img_path = os.path.join(images_dir, img_name)   
         image = cv2.imread(img_path)
         
         if image is None: continue

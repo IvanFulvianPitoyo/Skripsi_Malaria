@@ -3,46 +3,70 @@ import tkinter as tk
 from tkinter import filedialog
 from ultralytics import YOLO
 
-# 1. Sembunyikan window utama tkinter agar hanya pop-up file yang muncul
+# Menyembunyikan window utama tkinter agar tampilan rapi
 root = tk.Tk()
 root.withdraw()
-# Agar jendela pop-up muncul di paling depan
 root.attributes('-topmost', True) 
 
 print("==================================================")
 print("   SISTEM DETEKSI MALARIA BERBASIS YOLOv8m")
 print("==================================================")
-print("Menunggu Anda memilih file gambar...")
+print("Menunggu pemilihan file citra sediaan darah...")
 
-# 2. Buka jendela dialog untuk memilih gambar
+# Membuka dialog pemilihan file
+# (Sesuai dengan kesepakatan: GUI diimplementasikan sederhana, narasi proposal Bab 3 yang akan direvisi)
 sumber_gambar = filedialog.askopenfilename(
-    title="Pilih Gambar Sediaan Darah Mikroskopis",
+    title="Pilih Citra Sediaan Darah Mikroskopis",
     filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp")]
 )
 
-# 3. Cek apakah pengguna memilih gambar atau membatalkan
 if not sumber_gambar:
-    print("❌ Dibatalkan: Tidak ada gambar yang dipilih. Program dihentikan.")
+    print("❌ Dibatalkan: Tidak ada citra yang dipilih. Program dihentikan.")
 else:
-    print(f"✅ Gambar terpilih: {sumber_gambar}")
+    print(f"✅ Citra terpilih: {sumber_gambar}")
     
-    # 4. Tentukan lokasi model secara dinamis (Anti-Gagal)
-    # Ini akan mencari tahu secara otomatis di mana file uji_model.py ini berada
+    # Penentuan path relatif (Menjawab Revisi Poin 3.4: Menghindari Hardcode Path Windows)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Lalu menggabungkannya dengan folder 'models' dan file 'yolov8m.pt'
-    path_model = os.path.join(script_dir, 'models', 'yolov8m.pt')
+    # Memuat model terlatih, BUKAN model bawaan pabrik (Menjawab Revisi Poin 2.1)
+    path_model = os.path.join(script_dir, 'models', 'yolov8m_malaria.pt') 
     
     if not os.path.exists(path_model):
-        print(f"❌ Error: Model tidak ditemukan di lokasi absolut: '{path_model}'")
-        print("Pastikan file 'yolov8m.pt' benar-benar ada di dalam folder 'models' yang sejajar dengan file skrip ini.")
+        print(f"❌ Error: Model tidak ditemukan di lokasi: '{path_model}'")
+        print("Pastikan file 'yolov8m_malaria.pt' berada di dalam folder 'models'.")
     else:
-        print(f"✅ Model berhasil ditemukan!")
-        print("⏳ Memuat model YOLOv8m dan memproses gambar...")
+        print("⏳ Memuat model YOLOv8m (Terlatih - Trial 36) dan memproses citra...")
         
-        # 5. Eksekusi proses deteksi
+        # Eksekusi model YOLO
         model = YOLO(path_model)
-        hasil = model.predict(source=sumber_gambar, show=True, save=True)
         
-        print("\n🎉 Deteksi berhasil diselesaikan!")
-        print("📁 Gambar hasil inferensi otomatis disimpan di dalam folder 'runs/detect/predict'.")
+        # Parameter imgsz=640 dikunci agar parasit mikroskopis tidak hancur karena penyusutan resolusi
+        hasil = model.predict(
+            source=sumber_gambar, 
+            show=True,          
+            save=True,          
+            conf=0.25,          
+            show_labels=True,   
+            show_conf=True,
+            imgsz=640           
+        )
+        
+        print("\n==================================================")
+        print("🎉 DETEKSI SELESAI! BERIKUT HASILNYA:")
+        print("==================================================")
+        
+        # Ekstraksi dan pelaporan hasil deteksi secara interaktif di Terminal
+        boxes = hasil[0].boxes
+        if len(boxes) == 0:
+            print("⚠️ Tidak ada parasit yang terdeteksi (True Negative).")
+            print("💡 Catatan: Jika citra dipastikan positif, ini merupakan False Negative.")
+        else:
+            print(f"🦠 Ditemukan {len(boxes)} objek parasit pada citra:")
+            for i, box in enumerate(boxes):
+                class_id = int(box.cls[0].item())
+                nama_kelas = model.names[class_id]
+                akurasi = round(box.conf[0].item() * 100, 2)
+                
+                print(f"   ➤ Objek ke-{i+1}: [{nama_kelas}] dengan tingkat kepercayaan {akurasi}%")
+        
+        print("\n📁 Citra hasil deteksi (dengan Bounding Box) tersimpan di direktori 'runs/detect/predict'.")

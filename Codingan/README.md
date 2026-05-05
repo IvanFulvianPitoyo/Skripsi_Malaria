@@ -33,7 +33,7 @@ Berikut adalah penjelasan mengenai isi dari folder utama proyek ini yang telah d
 Pembimbing yang terhormat, berikut adalah dua catatan penting terkait konfigurasi training akhir pada skrip utama:
 
 1. **Penggunaan YOLOv8 Medium:** Model akhir dilatih menggunakan arsitektur `yolov8m.pt`, bukan `yolov8n.pt`, guna memaksimalkan performa pelokalan fitur parasit yang berukuran sangat mikro.
-2. **Mekanisme Early Stopping:** Pada eksperimen final (Trial 20), parameter epochs diatur ke 100 dan patience juga diatur ke 100. Pengaturan ini dilakukan secara sengaja untuk memaksa model menyelesaikan 100 putaran iterasi secara utuh tanpa interupsi pemotongan prematur. Hal ini krusial agar peneliti dapat mengekstraksi dan menganalisis kurva Validation Loss secara penuh dari awal hingga akhir untuk membuktikan tidak terjadinya anomali overfitting yang ekstrem.
+2. **Mekanisme Early Stopping:** Pada eksperimen final (Trial 36), parameter epochs diatur ke 100 dan patience juga diatur ke 100. Pengaturan ini dilakukan secara sengaja untuk memaksa model menyelesaikan 100 putaran iterasi secara utuh tanpa interupsi pemotongan prematur. Hal ini krusial agar peneliti dapat mengekstraksi dan menganalisis kurva Validation Loss secara penuh dari awal hingga akhir untuk mengurangi terjadinya overfitting yang sangat ekstrem.
 
 ---
 

@@ -2,80 +2,79 @@
 **Oleh: Ivan Fulvian Pitoyo (122430064)**
 **Program Studi Teknik Biomedis - Institut Teknologi Sumatera**
 
-Repositori ini berisi keseluruhan source code, dataset, hasil pelatihan, dan model Deep Learning (YOLOv8) untuk sistem deteksi parasit malaria (Plasmodium falciparum dan Plasmodium vivax) pada citra mikroskopis sediaan darah tepi.
+Repositori ini berisi keseluruhan *source code*, dataset sampel, hasil pelatihan, dan model Deep Learning (YOLOv8m) untuk sistem deteksi parasit malaria (*Plasmodium falciparum* dan *Plasmodium vivax*) pada citra mikroskopis sediaan darah tepi.
 
-File ini adalah panduan singkat untuk memahami struktur direktori, keputusan arsitektur, dan cara menjalankan model ini untuk keperluan pengujian (testing/inference) di perangkat lain.
+File ini adalah panduan singkat untuk memahami struktur direktori, keputusan metodologis arsitektur, dan cara menjalankan model ini untuk keperluan pengujian (testing/inference) di perangkat lain.
 
 ---
 
 ## 1. Struktur Direktori dan File
 
-Berikut adalah penjelasan mengenai isi dari folder utama proyek ini yang telah disusun ulang:
+Berikut adalah penjelasan mengenai isi dari repositori proyek ini yang telah dirapikan sesuai standar:
 
 **Folder Utama**
-* `db/` : Berisi database studi Optuna (`malaria_yolo_study`) untuk perekaman hasil pencarian hyperparameter.
-* `Hasil_Training/` : Tempat disimpannya luaran cadangan dari proses training (grafik evaluasi, confusion matrix, dll).
-* `models/` : Folder khusus yang menyimpan semua file *weights* model (`.pt`), termasuk model pre-trained (YOLOv8n, YOLOv8m) dan model final terbaik hasil penelitian (`yolo26m.pt`).
-* `runs/` : Folder default bawaan library Ultralytics YOLOv8 untuk menyimpan riwayat hasil training dan inferensi deteksi.
-* `src/` : Folder utama (*source*) yang berisi seluruh skrip Python, terbagi menjadi sub-folder:
-    * `1_preprocessing/` : Skrip untuk membagi data (*split*), augmentasi, dan penyeimbangan kelas.
-    * `2_utilities/` : Skrip alat bantu tambahan untuk mempermudah alur kerja.
-    * `3_training/` : Skrip utama untuk pelatihan model dan optimasi *hyperparameter*.
-* `venv/` : Lingkungan virtual Python (Virtual Environment) yang berisi semua instalasi library yang dibutuhkan. (Penting: Folder ini spesifik untuk konfigurasi sistem lokal dan mungkin perlu dibuat ulang jika dijalankan di komputer yang berbeda OS/Arsitektur).
+* `dataset_sample/` : Berisi beberapa citra sediaan darah mikroskopis contoh untuk keperluan uji coba (*testing*).
+* `db/` : Berisi database studi Optuna (`malaria_yolo_study.db`) untuk perekaman hasil pencarian *hyperparameter* secara persisten.
+* `models/` : Folder khusus yang menyimpan file bobot (*weights*) model (`.pt`), termasuk model *pre-trained* (YOLOv8m) dan model final terbaik hasil penelitian (`yolov8m_malaria.pt`).
+* `runs/` : Folder default bawaan library Ultralytics YOLOv8 untuk menyimpan riwayat hasil training, grafik evaluasi, matriks konfusi, dan inferensi deteksi.
+* `src/` : Folder utama kode sumber (*source code*) yang berisi skrip Python, terbagi menjadi:
+    * `1_preprocessing/` : Skrip untuk pembagian dataset 80:20 (Hold-Out) dan augmentasi citra (Noise, Brightness, dan Flip).
+    * `2_utilities/` : Skrip alat bantu tambahan untuk mempermudah alur kerja evaluasi dan pembersihan data.
+    * `3_training/` : Skrip utama untuk pelatihan model dan optimasi *hyperparameter* menggunakan Optuna.
 
-**Skrip di Root Directory**
-* `cek_gpu.py` / `Tes GPU bisa nggak.py` : Skrip singkat untuk memverifikasi apakah sistem berhasil membaca kartu grafis (GPU) NVIDIA.
+**File Konfigurasi & Skrip Utama di Root Directory**
+* `requirements.txt` : Daftar seluruh pustaka Python (*libraries*) beserta versinya yang dibutuhkan untuk menjalankan sistem ini.
+* `.gitignore` : Konfigurasi untuk mengabaikan file sistem, bobot raksasa, dan virtual environment agar tidak terunggah ke *repository*.
+* `uji_model.py` : Skrip untuk menjalankan pengujian deteksi secara interaktif (Dialog File).
+* `GUI.py` : Skrip untuk menjalankan Antarmuka Pengguna Grafis (GUI) lengkap dengan fitur kamera, *zoom*, rotasi, dan *export*.
 
 ---
 
-## 2. Catatan Konfigurasi Training
+## 2. Catatan Konfigurasi Training & Evaluasi
 
-Pembimbing yang terhormat, berikut adalah dua catatan penting terkait konfigurasi training akhir pada skrip utama:
+Pembimbing yang terhormat, berikut adalah catatan penting terkait metodologi dan konfigurasi akhir dari pelatihan model pada sistem ini:
 
-1. **Penggunaan YOLOv8 Medium:** Model akhir dilatih menggunakan arsitektur `yolov8m.pt`, bukan `yolov8n.pt`, guna memaksimalkan performa pelokalan fitur parasit yang berukuran sangat mikro.
-2. **Mekanisme Early Stopping:** Pada eksperimen final (Trial 20), parameter epochs diatur ke 100 dan patience juga diatur ke 100. Pengaturan ini dilakukan secara sengaja untuk memaksa model menyelesaikan 100 putaran iterasi secara utuh tanpa interupsi pemotongan prematur. Hal ini krusial agar peneliti dapat mengekstraksi dan menganalisis kurva Validation Loss secara penuh dari awal hingga akhir untuk membuktikan tidak terjadinya anomali overfitting yang ekstrem.
+1. **Penggunaan YOLOv8 Medium:** Model dilatih menggunakan arsitektur `yolov8m.pt` (Medium) alih-alih tipe Nano, guna memaksimalkan performa ekstraksi fitur dan pelokalan parasit yang berukuran sangat mikro.
+2. **Pemilihan Hyperparameter:** Pencarian *hyperparameter* terbaik dilakukan menggunakan framework Optuna. Resep parameter yang digunakan untuk model final diambil dari **Trial 36**, karena trial ini terbukti secara empiris menghasilkan evaluasi mAP50 tertinggi.
+3. **Penanganan Overfitting & Pemilihan Bobot (Weights):** Pada proses pelatihan final (100 Epochs), observasi kurva evaluasi menunjukkan bahwa model mencapai puncak akurasi dan kepintarannya pada **Epoch 66** (mAP50: 0.890). Setelah melewati epoch tersebut, model mulai mengalami *overfitting* ringan yang ditandai dengan melebarnya jarak nilai *Validation Loss*. Sebagai mitigasi ilmiah yang tepat, penelitian ini mengekstraksi dan menggunakan file bobot **`best.pt`** (rekaman kondisi model di Epoch 66) yang kemudian diubah namanya menjadi `yolov8m_malaria.pt` untuk evaluasi akhir, dan secara sadar membuang bobot `last.pt` (kondisi *overfit* di Epoch 100).
 
 ---
 
 ## 3. Panduan Pengujian Model (Inferensi) di Komputer Lain
 
-Agar model ini dapat diuji coba di komputer Bapak Pembimbing, silakan ikuti langkah-langkah berikut:
+Agar model ini dapat diuji coba secara langsung di komputer Bapak Pembimbing atau Penguji, silakan ikuti langkah-langkah berikut:
 
 **Prasyarat (Requirements)**
-1. Komputer sudah terinstal Python 3.8 atau lebih baru.
-2. Terdapat aplikasi Terminal (Command Prompt) atau IDE seperti Visual Studio Code (VS Code).
-3. Untuk sekadar pengujian deteksi (inferensi gambar), CPU standar tanpa kartu grafis NVIDIA sudah memadai.
+1. Komputer telah terinstal Python 3.8 atau lebih baru.
+2. Terdapat aplikasi Terminal (Command Prompt) atau IDE seperti Visual Studio Code.
+3. Untuk sekadar pengujian deteksi (inferensi citra), CPU standar sudah memadai.
 
 **Langkah 1: Persiapan Folder**
-1. Salin (copy) seluruh folder "Skripsi_Malaria" ini ke dalam komputer tujuan.
-2. Buka folder tersebut menggunakan VS Code atau arahkan direktori Terminal ke dalam folder ini.
+1. Unduh atau salin (copy) seluruh folder "Skripsi_Malaria" ini ke dalam komputer.
+2. Buka Terminal/Command Prompt, lalu arahkan (*cd*) ke dalam direktori folder ini.
 
-**Langkah 2: Instalasi Library**
-Buka Terminal/Command Prompt, lalu ketik dan jalankan dua perintah berikut:
-> pip install ultralytics
-> pip install opencv-python
+**Langkah 2: Instalasi Library Sesuai Standar Lingkungan**
+Untuk menyamakan *environment*, jalankan perintah berikut di Terminal agar semua pustaka terinstal otomatis:
+> pip install -r requirements.txt
 
-**Langkah 3: Menguji Model Melalui Terminal**
-Untuk menguji kemampuan model (`yolo26m.pt`) dalam mendeteksi gambar malaria baru, jalankan perintah ini di Terminal (pastikan file gambar uji tersedia di dalam folder datasets dan sesuaikan path model ke folder `models/`):
+**Langkah 3: Menguji Model Melalui GUI (Sangat Disarankan)**
+Sistem ini telah dilengkapi dengan Graphical User Interface (GUI) yang interaktif. Cukup jalankan perintah:
+> python gui_malaria.py
 
-> yolo task=detect mode=predict model="models/yolo26m.pt" source="datasets/gambar_uji.jpg" show=True
+Jendela aplikasi akan terbuka. Pengguna dapat menekan "Start Camera" untuk deteksi *real-time* berbasis mikroskop, menyesuaikan parameter rotasi dan pembesaran (*zoom*), atau mengekspor hasil tangkapan.
 
-(Catatan: Parameter show=True akan memunculkan jendela baru yang menampilkan gambar sediaan darah lengkap dengan kotak merah deteksi parasit malaria).
-
-**Langkah 4 (Opsional): Menguji Model Melalui Skrip Interaktif**
-Sebagai alternatif yang lebih mudah, sistem ini telah dilengkapi dengan antarmuka pemilihan file (File Dialog). Buka Terminal/Command Prompt, lalu jalankan perintah berikut:
-
+**Langkah 4: Menguji Model Cepat (Skrip Interaktif)**
+Sebagai alternatif, Bapak bisa menggunakan skrip *File Dialog* sederhana dengan perintah:
 > python uji_model.py
 
-Setelah dijalankan, sebuah jendela pop-up akan muncul. Bapak cukup memilih gambar sediaan darah mana pun yang ada di komputer Bapak. Sistem akan otomatis memuat model `yolo26m.pt`, mendeteksi parasit, menampilkan hasilnya di layar, dan menyimpan gambar hasil deteksinya.
-
+Sistem akan memunculkan *pop-up*, Bapak cukup memilih salah satu citra uji dari folder `dataset_sample/`. Program akan memproses citra tersebut dengan model `yolov8m_malaria.pt`, menampilkan hasilnya di layar, dan menyimpan citranya ke dalam folder `runs/`.
 
 ---
 
 ## Kontak
 Jika terdapat kendala teknis saat menjalankan sistem ini, silakan menghubungi:
-Ivan Fulvian Pitoyo (122430064)
+**Ivan Fulvian Pitoyo** (122430064)
 Program Studi Teknik Biomedis - ITERA
 +6281380093355
 
-Terima kasih yang sebesar-besarnya atas bimbingan dan arahan Bapak selama proses pengerjaan Tugas Akhir ini.
+Terima kasih yang sebesar-besarnya atas bimbingan dan arahan dari Bapak Dosen Pembimbing selama proses pengerjaan Tugas Akhir ini.

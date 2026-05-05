@@ -4,66 +4,63 @@ import random
 from tqdm import tqdm
 
 # --- 1. KONFIGURASI PATH WINDOWS (LOCAL) ---
-# Folder SUMBER (Data Asli 23 Folder)
-# Menggunakan r"" (raw string) agar backslash '\' terbaca benar di Windows
 source_root = r"C:\Users\Ivan\OneDrive\Documents\Skripsi\Actual Dataset\Dataset Malaria Hanura"
-
-# Folder TUJUAN (Format YOLO)
-# Sesuai screenshot Anda: Documents > Skripsi_Malaria > datasets > malaria
 dataset_dest = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\datasets\malaria"
 
 def split_dataset_local_mix():
-    # Cek apakah folder sumber terbaca
     if not os.path.exists(source_root):
         print(f"❌ Error: Folder sumber tidak ditemukan di:")
         print(f"   {source_root}")
         print("👉 Pastikan path sudah benar dan tidak ada typo.")
         return
 
-    print("🕵️‍♂️ Sedang menscan file dari folder OneDrive...")
-    print("   (Ini mungkin butuh waktu sedikit jika OneDrive sedang sync)")
+    print("🕵️‍♂️ Sedang menscan file dari folder sumber...")
+
+    # MENGINISIALISASI VARIABEL YANG HILANG
+    valid_images = ('.jpg', '.jpeg', '.png', '.bmp')
+    data_pairs = []
+    
+    # Kata kunci file augmentasi/copy yang harus dijauhkan (Revisi Poin 1.1)
+    keywords_aug = ["_copy_", "_aug", "_bal_"]
 
     # --- 2. MENGUMPULKAN DATA ---
-    data_pairs = []
-    valid_images = ('.jpg', '.jpeg', '.png', '.bmp')
-
-    # os.walk akan menelusuri semua sub-folder (Sudah Anotasi 1 s/d 23)
     for root, dirs, files in os.walk(source_root):
         for f in files:
+            # FILTER ANTI-LEAKAGE: Diletakkan di dalam loop untuk setiap file
+            if any(k in f.lower() for k in keywords_aug):
+                continue  # Lewati file ini, jangan dimasukkan ke pembagian
+            
             if f.lower().endswith(valid_images):
                 img_path = os.path.join(root, f)
                 
-                # Cari pasangan label .txt
-                # Asumsi nama file sama, cuma beda ekstensi
                 base_name = os.path.splitext(f)[0]
                 txt_name = base_name + '.txt'
                 txt_path = os.path.join(root, txt_name)
                 
-                # Hanya ambil jika pasangan labelnya ADA
                 if os.path.exists(txt_path):
                     data_pairs.append((img_path, txt_path))
 
     total_files = len(data_pairs)
-    print(f"📊 Total Pasangan Gambar+Label ditemukan: {total_files}")
+    print(f"📊 Total Pasangan Gambar+Label bersih (tanpa augmentasi): {total_files}")
     
     if total_files == 0:
-        print("❌ Tidak ada data ditemukan. Cek apakah folder OneDrive Anda sudah ter-download di laptop?")
+        print("❌ Tidak ada data ditemukan. Cek kembali folder Anda.")
         return
 
-    # --- 3. ACAK & BAGI (70:30) ---
     print("🔀 Mengacak (Mixing) dataset...")
-    random.seed(42) # Seed 42 agar hasil acakan konsisten jika di-run ulang
+    random.seed(42) 
     random.shuffle(data_pairs)
     
-    # Hitung titik potong 70%
-    split_idx = int(total_files * 0.7)
+    # --- 3. PEMBAGIAN 80:20 (Revisi Poin 1.4) ---
+    split_idx = int(total_files * 0.8)
     
     train_set = data_pairs[:split_idx]
     val_set = data_pairs[split_idx:]
     
-    print(f"✅ Training Set (70%) : {len(train_set)} file")
-    print(f"✅ Validation Set (30%): {len(val_set)} file")
+    print(f"✅ Training Set (80%) : {len(train_set)} file")
+    print(f"✅ Validation Set (20%): {len(val_set)} file")
 
+    # --- 4. PEMBUATAN FOLDER ---
     for split in ['train', 'val']:
         os.makedirs(os.path.join(dataset_dest, 'images', split), exist_ok=True)
         os.makedirs(os.path.join(dataset_dest, 'labels', split), exist_ok=True)
@@ -72,23 +69,19 @@ def split_dataset_local_mix():
     def copy_files(data_list, split_type):
         print(f"🚀 Menyalin ke folder {split_type}...")
         for img_src, txt_src in tqdm(data_list):
-            # Nama file asli
             filename_img = os.path.basename(img_src)
             filename_txt = os.path.basename(txt_src)
             
-            # Path Tujuan
             dst_img = os.path.join(dataset_dest, 'images', split_type, filename_img)
             dst_txt = os.path.join(dataset_dest, 'labels', split_type, filename_txt)
             
-            # Copy file (Overwrite jika sudah ada, biar update)
             shutil.copy2(img_src, dst_img)
             shutil.copy2(txt_src, dst_txt)
 
     copy_files(train_set, 'train')
     copy_files(val_set, 'val')
     
-    print("\n🎉 SELESAI! Dataset sudah terbagi di folder:")
-    print(f"   {dataset_dest}")
+    print("\n🎉 SELESAI! Dataset sudah terbagi 80:20 dengan aman tanpa kebocoran data (Data Leakage)!")
 
 if __name__ == "__main__":
     split_dataset_local_mix()
