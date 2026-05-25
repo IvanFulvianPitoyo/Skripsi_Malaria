@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 # --- 1. KONFIGURASI PATH WINDOWS (LOCAL) ---
 source_root = r"C:\Users\Ivan\OneDrive\Documents\Skripsi\Actual Dataset\Dataset Malaria Hanura"
-dataset_dest = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\datasets\malaria"
+dataset_dest = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\dataset_final_malaria"
 
 def split_dataset_local_mix():
     if not os.path.exists(source_root):
@@ -20,7 +20,7 @@ def split_dataset_local_mix():
     valid_images = ('.jpg', '.jpeg', '.png', '.bmp')
     data_pairs = []
     
-    # Kata kunci file augmentasi/copy yang harus dijauhkan (Revisi Poin 1.1)
+    # Kata kunci file augmentasi/copy yang harus dijauhkan (Revisi Poin 1.1)    
     keywords_aug = ["_copy_", "_aug", "_bal_"]
 
     # --- 2. MENGUMPULKAN DATA ---

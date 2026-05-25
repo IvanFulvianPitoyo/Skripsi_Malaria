@@ -5,22 +5,18 @@ from ultralytics import YOLO
 from multiprocessing import freeze_support
 
 # ==============================
-# PATH SETTING (DINAMIS & ANTI-HARDCODE)
+# PATH SETTING (ABSOLUT PADA SKRIPSI_MALARIA)
 # ==============================
-# Mendeteksi folder utama proyek secara otomatis (mundur 2 folder dari src/training/)
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+# Path langsung diarahkan ke folder Skripsi_Malaria Anda
+project_root_dir = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria"
+dataset_path = os.path.join(project_root_dir, "datasets", "malaria")
+project_save_path = r"D:\Skripsi_Malaria_Output"
 
-# Mendefinisikan semua path berdasarkan folder utama
-dataset_path = os.path.join(project_root, "datasets", "malaria")
+# File YAML akan otomatis dibuat di dalam folder dataset
 yaml_path = os.path.join(dataset_path, "malaria.yaml")
-model_path = os.path.join(project_root, "models", "yolov8m.pt")
-project_save_path = os.path.join(project_root, "runs", "detect")
 
-# Path untuk database Optuna agar tersimpan persisten
-db_dir = os.path.join(project_root, "db")
-os.makedirs(db_dir, exist_ok=True)
-db_path = os.path.join(db_dir, "malaria_yolo_study.db")
+# Path menuju model mentah yolov8m.pt di dalam folder 'models'
+model_path = os.path.join(project_root_dir, "models", "yolov8m.pt")
 
 # ==============================
 # TARGET SETTING
@@ -34,14 +30,12 @@ MAX_TOTAL_TRIALS = 30  # Pencarian tidak butuh banyak trial karena hanya 3 param
 def objective(trial):
     print(f"\n🔎 MEMULAI TRIAL {trial.number} (Fokus 3 Parameter Utama)...")
 
-    # ==================================================
-    # THE HOLY TRINITY HYPERPARAMETERS (Yang Diacak)
-    # ==================================================
+    # The Holy Trinity Hyperparameters
     lr0 = trial.suggest_float("lr0", 1e-4, 1e-2, log=True)
     momentum = trial.suggest_float("momentum", 0.85, 0.98)
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-4, log=True)
 
-    # Menggunakan model mentah yang lokasinya sudah dipastikan valid
+    # Menggunakan model mentah YOLOv8m yang sudah diarahkan path-nya
     model = YOLO(model_path)
 
     results = model.train(
@@ -53,12 +47,12 @@ def objective(trial):
         workers=2,          
         optimizer="AdamW",
         
-        # --- PARAMETER YANG DI-TUNING OPTUNA (HOLY TRINITY) ---
+        # --- PARAMETER YANG DI-TUNING OPTUNA ---
         lr0=lr0,
         momentum=momentum,
         weight_decay=weight_decay,
         
-        # --- PARAMETER YANG DIKUNCI (DARI ARGS.YAML 88.95%) ---
+        # --- PARAMETER YANG DIKUNCI (DARI REKAM JEJAK TERBAIK) ---
         lrf=0.0042683683244226795,
         warmup_epochs=6.6902538291572045,
         warmup_momentum=0.94220796847618,
@@ -88,7 +82,7 @@ def objective(trial):
 # ==============================
 def run_optuna_training():
     
-    # 1. Buat YAML dataset
+    # 1. Buat/Update file YAML
     yaml_content = {
         'path': dataset_path,
         'train': 'images/train',
@@ -99,15 +93,11 @@ def run_optuna_training():
         yaml.dump(yaml_content, f, default_flow_style=False)
 
     print("🚀 MEMULAI PENCARIAN TAHAP KEDUA (FINE-TUNING HOLY TRINITY)...")
+    print(f"📂 Lokasi Dataset : {dataset_path}")
+    print(f"📂 Lokasi Model   : {model_path}")
     
-    # 2. Inisialisasi Database Optuna (Menjawab Revisi Poin 1.5)
-    db_url = f"sqlite:///{db_path}"
-    study = optuna.create_study(
-        direction="maximize", 
-        study_name="Malaria_YOLO_Holy3",
-        storage=db_url,          # Parameter wajib agar hasil tersimpan ke DB
-        load_if_exists=True      # Melanjutkan pencarian jika sudah ada DB sebelumnya
-    )
+    # 2. Mulai Optuna
+    study = optuna.create_study(direction="maximize", study_name="Malaria_YOLO_Holy3")
     
     while True:
         study.optimize(objective, n_trials=1)
@@ -115,7 +105,7 @@ def run_optuna_training():
         print(f"\n🏆 Best mAP50 Saat Ini: {best_val:.4f} (Target: {TARGET_MAP50})")
 
         if best_val >= TARGET_MAP50:
-            print("🎯 Target 90% Tercapai! Menghentikan pencarian...")
+            print("🎯 Target 90% Tercapai! Menghentikan pencarian parameter...")
             break
 
         if len(study.trials) >= MAX_TOTAL_TRIALS:
@@ -128,7 +118,7 @@ def run_optuna_training():
     print("\n🔥 TRAINING FINAL DENGAN PARAMETER TERBAIK (100 EPOCH)...")
 
     best_params = study.best_params
-    print(f"Resep Pemenang: {best_params}")
+    print(f"Resep Pemenang Optuna: {best_params}")
 
     model = YOLO(model_path)
 
@@ -141,10 +131,12 @@ def run_optuna_training():
         workers=2,
         optimizer="AdamW",
         
+        # --- HASIL TUNING OPTUNA ---
         lr0=best_params["lr0"],
         momentum=best_params["momentum"],
         weight_decay=best_params["weight_decay"],
         
+        # --- PARAMETER YANG DIKUNCI ---
         lrf=0.0042683683244226795,
         warmup_epochs=6.6902538291572045,
         warmup_momentum=0.94220796847618,
@@ -159,8 +151,9 @@ def run_optuna_training():
         flipud=0.5,
         cos_lr=True,
         
+        # --- OUTPUT SYSTEM ---
         project=project_save_path,
-        name="Training_Final_Holy3_Best",
+        name="Training_Holy3",
         save=True,          
         plots=True          
     )

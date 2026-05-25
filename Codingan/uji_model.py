@@ -8,11 +8,6 @@ root = tk.Tk()
 root.withdraw()
 root.attributes('-topmost', True) 
 
-print("==================================================")
-print("   SISTEM DETEKSI MALARIA BERBASIS YOLOv8m")
-print("==================================================")
-print("Menunggu pemilihan file citra sediaan darah...")
-
 # Membuka dialog pemilihan file
 # (Sesuai dengan kesepakatan: GUI diimplementasikan sederhana, narasi proposal Bab 3 yang akan direvisi)
 sumber_gambar = filedialog.askopenfilename(
@@ -29,7 +24,7 @@ else:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Memuat model terlatih, BUKAN model bawaan pabrik (Menjawab Revisi Poin 2.1)
-    path_model = os.path.join(script_dir, 'models', 'yolov8m_malaria.pt') 
+    path_model = os.path.join(script_dir, 'models', 'yolov8m_malaria)(90.082%).pt') 
     
     if not os.path.exists(path_model):
         print(f"❌ Error: Model tidak ditemukan di lokasi: '{path_model}'")

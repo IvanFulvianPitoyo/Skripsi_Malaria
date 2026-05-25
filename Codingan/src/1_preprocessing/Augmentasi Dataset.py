@@ -4,7 +4,7 @@ import numpy as np
 import random
 from tqdm import tqdm
 
-base_path = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\datasets\malaria"
+base_path = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\dataset_final_malaria"
 images_dir = os.path.join(base_path, "images", "train")
 labels_dir = os.path.join(base_path, "labels", "train")
 
@@ -88,7 +88,7 @@ def augment_data():
             new_labels.append(f"{cls} {new_x} {y} {w} {h}\n")
             
         with open(os.path.join(labels_dir, new_name + ".txt"), 'w') as f:
-            f.writelines(new_labels) Tamba
+            f.writelines(new_labels)
         count += 1
 
     print(f"\n✅ SELESAI! Berhasil membuat {count} gambar baru.")
