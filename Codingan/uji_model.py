@@ -9,7 +9,6 @@ root.withdraw()
 root.attributes('-topmost', True) 
 
 # Membuka dialog pemilihan file
-# (Sesuai dengan kesepakatan: GUI diimplementasikan sederhana, narasi proposal Bab 3 yang akan direvisi)
 sumber_gambar = filedialog.askopenfilename(
     title="Pilih Citra Sediaan Darah Mikroskopis",
     filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp")]
@@ -20,32 +19,33 @@ if not sumber_gambar:
 else:
     print(f"✅ Citra terpilih: {sumber_gambar}")
     
-    # Penentuan path relatif (Menjawab Revisi Poin 3.4: Menghindari Hardcode Path Windows)
+    # Penentuan path relatif
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Memuat model terlatih, BUKAN model bawaan pabrik (Menjawab Revisi Poin 2.1)
-    path_model = os.path.join(script_dir, 'models', 'yolov8m_malaria)(90.082%).pt') 
+    # Memuat model terlatih
+    path_model = os.path.join(script_dir, 'models', 'yolov8m_malaria(91%)1x2.pt') 
     
     if not os.path.exists(path_model):
         print(f"❌ Error: Model tidak ditemukan di lokasi: '{path_model}'")
-        print("Pastikan file 'yolov8m_malaria.pt' berada di dalam folder 'models'.")
+        print("Pastikan file 'yolov8m_malaria(91%)1x2.pt' berada di dalam folder 'models'.")
     else:
-        print("⏳ Memuat model YOLOv8m (Terlatih - Trial 36) dan memproses citra...")
+        print("⏳ Memuat model YOLOv8m (Terlatih) dan memproses citra...")
         
         # Eksekusi model YOLO
         model = YOLO(path_model)
         
-        # Parameter imgsz=640 dikunci agar parasit mikroskopis tidak hancur karena penyusutan resolusi
+       # Eksekusi Prediksi dengan memaksa menggunakan CPU
         hasil = model.predict(
             source=sumber_gambar, 
             show=True,          
             save=True,          
-            conf=0.25,          
+            conf=0.65,          
             show_labels=True,   
             show_conf=True,
-            imgsz=640           
+            imgsz=640,
+            half=False,
+            device='cpu'        # <--- TAMBAHKAN BARIS INI UNTUK MEM-BYPASS ERROR CUDA
         )
-        
         print("\n==================================================")
         print("🎉 DETEKSI SELESAI! BERIKUT HASILNYA:")
         print("==================================================")

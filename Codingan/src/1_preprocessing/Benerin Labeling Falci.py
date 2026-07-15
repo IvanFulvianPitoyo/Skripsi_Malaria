@@ -3,9 +3,9 @@ from tqdm import tqdm
 
 # --- KONFIGURASI PATH ---
 # Lokasi dataset label Anda (Train, Val, dan Test)
-train_label_path = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\dataset_final_malaria\labels\train"
-val_label_path   = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\dataset_final_malaria\labels\val"
-test_label_path  = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\dataset_final_malaria\labels\test"
+train_label_path = r"D:\DatasetMalaria1x1\labels\train"
+val_label_path   = r"D:\DatasetMalaria1x1\labels\val"
+test_label_path  = r"D:\DatasetMalaria1x1\labels\test"
 
 def fix_labels(folder_path):
     print(f"🔧 Memperbaiki label di folder: {folder_path}")

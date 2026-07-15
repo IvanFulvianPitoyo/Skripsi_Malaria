@@ -6,7 +6,7 @@ from tqdm import tqdm
 # --- 1. KONFIGURASI PATH WINDOWS (LOCAL) ---
 source_root = r"C:\Users\Ivan\OneDrive\Documents\Skripsi\Actual Dataset\Dataset Malaria Hanura"
 # PATH DESTINASI SUDAH DIPERBAIKI SESUAI INSTRUKSI:
-dataset_dest = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\dataset_final_malaria"
+dataset_dest = r"D:\DatasetMalaria1x1"
 
 def split_dataset_local_mix():
     if not os.path.exists(source_root):

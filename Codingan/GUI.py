@@ -1,8 +1,10 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import os
+os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
 import cv2
 from PIL import Image, ImageTk
-import os
+from ultralytics import YOLO
 
 class MalariaGUI:
     def __init__(self, root):
@@ -17,6 +19,9 @@ class MalariaGUI:
         self.display_image = None
         self.zoom_factor = 1.0
         self.rotation_angle = 0
+        self.camera_index = 0
+        self.model = None
+        self.model_path = None
 
         self.setup_ui()
 
@@ -27,11 +32,21 @@ class MalariaGUI:
         tk.Label(self.control_frame, text="Controls", bg="#808080", fg="white", font=("Arial", 12, "bold"), anchor="w").pack(fill=tk.X, pady=(0, 5))
 
 
+        model_frame = tk.LabelFrame(self.control_frame, text="Model", bg="#f0f0f0", font=("Arial", 9, "bold"))
+        model_frame.pack(fill=tk.X, pady=5)
+
+        tk.Button(model_frame, text="Load Model", command=self.load_model, width=20).pack(pady=2)
+
+        self.lbl_model_status = tk.Label(model_frame, text="No Model Loaded", fg="red", bg="#f0f0f0", font=("Arial", 8), wraplength=200, justify="left")
+        self.lbl_model_status.pack(pady=5)
+
+
         cam_frame = tk.LabelFrame(self.control_frame, text="Camera", bg="#f0f0f0", font=("Arial", 9, "bold"))
         cam_frame.pack(fill=tk.X, pady=5)
         
         tk.Button(cam_frame, text="Start Camera", command=self.start_camera, width=20).pack(pady=2)
         tk.Button(cam_frame, text="Stop Camera", command=self.stop_camera, width=20).pack(pady=2)
+        tk.Button(cam_frame, text="Switch Camera", command=self.switch_camera, width=20).pack(pady=2)
         tk.Button(cam_frame, text="Take Image", command=self.take_image, width=20).pack(pady=2)
         tk.Button(cam_frame, text="Check Camera", command=self.check_camera, width=20).pack(pady=2)
         
@@ -83,20 +98,46 @@ class MalariaGUI:
 
         self.drag_data = {"x": 0, "y": 0}
 
+    def load_model(self):
+        file_path = filedialog.askopenfilename(
+            title="Pilih File Model YOLOv8 (.pt)",
+            filetypes=[
+                ("PyTorch Model", "*.pt"),
+                ("All Files", "*.*")
+            ]
+        )
+
+        if not file_path:
+            return
+
+        self.lbl_model_status.config(text="Loading model...", fg="blue")
+        self.root.update_idletasks()
+
+        try:
+            self.model = YOLO(file_path)
+            self.model_path = file_path
+            model_name = os.path.basename(file_path)
+            self.lbl_model_status.config(text=f"Model Loaded:\n{model_name}", fg="green")
+        except Exception as e:
+            self.model = None
+            self.model_path = None
+            self.lbl_model_status.config(text="No Model Loaded", fg="red")
+            messagebox.showerror("Error", f"Gagal memuat model:\n{str(e)}")
+
     def check_camera(self):
-        temp_cap = cv2.VideoCapture(0)
+        temp_cap = cv2.VideoCapture(self.camera_index)
         if temp_cap.isOpened():
-            self.lbl_cam_status.config(text="Camera Detected", fg="green")
+            self.lbl_cam_status.config(text=f"Camera {self.camera_index} Detected", fg="green")
             temp_cap.release()
         else:
             self.lbl_cam_status.config(text="Camera Not Detected", fg="red")
 
     def start_camera(self):
         if not self.is_camera_on:
-            self.vid = cv2.VideoCapture(0)
+            self.vid = cv2.VideoCapture(self.camera_index)
             if self.vid.isOpened():
                 self.is_camera_on = True
-                self.lbl_cam_status.config(text="Camera Active", fg="green")
+                self.lbl_cam_status.config(text=f"Camera {self.camera_index} Active", fg="green")
                 self.update_frame()
             else:
                 messagebox.showerror("Error", "Kamera tidak ditemukan!")
@@ -108,6 +149,41 @@ class MalariaGUI:
         self.lbl_cam_status.config(text="Camera Stopped", fg="orange")
         self.canvas.delete("all")
 
+    def switch_camera(self):
+        # Only ever toggle between camera 0 and camera 1 - a single quick probe,
+        # instead of looping through several indices (that looping was what
+        # caused the lag and the repeated "Camera index out of range" errors).
+        next_index = 1 if self.camera_index == 0 else 0
+
+        test_cap = cv2.VideoCapture(next_index)
+        alternate_available = test_cap.isOpened()
+        test_cap.release()
+
+        if not alternate_available:
+            # Leave the current feed completely untouched - just report it.
+            self.lbl_cam_status.config(text="No other camera detected", fg="red")
+            return
+
+        # Alternate camera confirmed available - now actually switch to it.
+        was_on = self.is_camera_on
+        self.is_camera_on = False
+        if self.vid:
+            self.vid.release()
+            self.vid = None
+
+        self.camera_index = next_index
+
+        if was_on:
+            self.vid = cv2.VideoCapture(self.camera_index)
+            if self.vid.isOpened():
+                self.is_camera_on = True
+                self.lbl_cam_status.config(text=f"Camera {self.camera_index} Active", fg="green")
+                self.update_frame()
+            else:
+                self.lbl_cam_status.config(text="Camera Not Detected", fg="red")
+        else:
+            self.lbl_cam_status.config(text=f"Camera {self.camera_index} Selected", fg="blue")
+
     def take_image(self):
     
         self.is_camera_on = False
@@ -117,8 +193,16 @@ class MalariaGUI:
         if self.is_camera_on:
             ret, frame = self.vid.read()
             if ret:
-        
-                self.current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                if self.model is not None:
+                    try:
+                        results = self.model(frame, verbose=False)
+                        annotated_frame = results[0].plot()
+                        self.current_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                    except Exception:
+                        # Fall back to the raw feed if inference fails on a frame
+                        self.current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                else:
+                    self.current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 self.render_image()
             self.root.after(15, self.update_frame)
     def set_rotation(self, angle):

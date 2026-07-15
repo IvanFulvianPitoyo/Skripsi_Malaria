@@ -4,8 +4,8 @@ import random
 from tqdm import tqdm
 
 # --- KONFIGURASI PATH (Drive C - Dataset RGB Anda) ---
-dataset_train_path = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\datasets\malaria\images\train"
-label_train_path   = r"C:\Users\Ivan\OneDrive\Documents\Skripsi_Malaria\datasets\malaria\labels\train"
+dataset_train_path = r"D:\DatasetMalaria1x1\images\train"
+label_train_path   = r"D:\DatasetMalaria1x1\labels\train"
 
 def balance_dataset_v2():
     print("🔍 DIAGNOSA PATH...")
