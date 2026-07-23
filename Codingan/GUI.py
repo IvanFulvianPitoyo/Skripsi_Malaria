@@ -5,12 +5,15 @@ os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
 import cv2
 from PIL import Image, ImageTk
 from ultralytics import YOLO
+import torch
+import numpy as np
+import threading
 
 class MalariaGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Sistem Deteksi Malaria YOLOv8m")
-        self.root.geometry("1000x700")
+        self.root.geometry("3024x4032")
         self.root.configure(bg="#e0e0e0")
         
         self.vid = None
@@ -22,6 +25,8 @@ class MalariaGUI:
         self.camera_index = 0
         self.model = None
         self.model_path = None
+        self.device = "cpu"
+        self.switching_camera = False
 
         self.setup_ui()
 
@@ -52,6 +57,15 @@ class MalariaGUI:
         
         self.lbl_cam_status = tk.Label(cam_frame, text="Camera Not Detected", fg="red", bg="#f0f0f0", font=("Arial", 8))
         self.lbl_cam_status.pack(pady=5)
+
+
+        image_frame = tk.LabelFrame(self.control_frame, text="Image Input", bg="#f0f0f0", font=("Arial", 9, "bold"))
+        image_frame.pack(fill=tk.X, pady=5)
+
+        tk.Button(image_frame, text="Load Image", command=self.load_image, width=20).pack(pady=2)
+
+        self.lbl_image_status = tk.Label(image_frame, text="No Image Loaded", fg="red", bg="#f0f0f0", font=("Arial", 8), wraplength=200, justify="left")
+        self.lbl_image_status.pack(pady=5)
 
    
         flip_frame = tk.LabelFrame(self.control_frame, text="Flip Controls", bg="#f0f0f0", font=("Arial", 9, "bold"))
@@ -116,13 +130,70 @@ class MalariaGUI:
         try:
             self.model = YOLO(file_path)
             self.model_path = file_path
+
+            # Some GPU / CUDA / PyTorch build combinations aren't compatible
+            # (this is what caused the earlier "no kernel image is available"
+            # error). Test on a tiny dummy image and fall back to CPU if the
+            # GPU can't actually run inference.
+            self.device = "cpu"
+            if torch.cuda.is_available():
+                try:
+                    dummy = np.zeros((64, 64, 3), dtype=np.uint8)
+                    self.model.predict(dummy, device="cuda", verbose=False)
+                    self.device = "cuda"
+                except Exception:
+                    self.device = "cpu"
+
             model_name = os.path.basename(file_path)
-            self.lbl_model_status.config(text=f"Model Loaded:\n{model_name}", fg="green")
+            device_label = "GPU" if self.device == "cuda" else "CPU"
+            self.lbl_model_status.config(text=f"Model Loaded ({device_label}):\n{model_name}", fg="green")
         except Exception as e:
             self.model = None
             self.model_path = None
             self.lbl_model_status.config(text="No Model Loaded", fg="red")
             messagebox.showerror("Error", f"Gagal memuat model:\n{str(e)}")
+
+    def load_image(self):
+        file_path = filedialog.askopenfilename(
+            title="Pilih Gambar untuk Dianalisis",
+            filetypes=[
+                ("Image Files", "*.png *.jpg *.jpeg *.bmp *.tiff *.tif"),
+                ("All Files", "*.*")
+            ]
+        )
+
+        if not file_path:
+            return
+
+        # A static image is about to take over the view, so stop any live feed first
+        if self.is_camera_on:
+            self.stop_camera()
+
+        img_bgr = cv2.imread(file_path)
+        if img_bgr is None:
+            messagebox.showerror("Error", "Gagal membuka file gambar. Pastikan file valid.")
+            self.lbl_image_status.config(text="No Image Loaded", fg="red")
+            return
+
+        self.lbl_image_status.config(text="Processing image...", fg="blue")
+        self.root.update_idletasks()
+
+        if self.model is not None:
+            try:
+                results = self.model(img_bgr, verbose=False, device=self.device)
+                annotated = results[0].plot()
+                self.current_frame = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+            except Exception as e:
+                self.current_frame = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+                messagebox.showwarning("Peringatan", f"Gagal menjalankan deteksi pada gambar:\n{str(e)}")
+        else:
+            self.current_frame = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+
+        # Reset zoom/rotation so the newly loaded image displays cleanly, then render it
+        self.reset_view()
+
+        image_name = os.path.basename(file_path)
+        self.lbl_image_status.config(text=f"Image Loaded:\n{image_name}", fg="green")
 
     def check_camera(self):
         temp_cap = cv2.VideoCapture(self.camera_index)
@@ -150,32 +221,74 @@ class MalariaGUI:
         self.canvas.delete("all")
 
     def switch_camera(self):
-        # Only ever toggle between camera 0 and camera 1 - a single quick probe,
-        # instead of looping through several indices (that looping was what
-        # caused the lag and the repeated "Camera index out of range" errors).
+        # Ignore extra clicks while a switch is already in progress -
+        # avoids two threads racing on self.vid.
+        if self.switching_camera:
+            return
+        self.switching_camera = True
+
         next_index = 1 if self.camera_index == 0 else 0
 
-        test_cap = cv2.VideoCapture(next_index)
-        alternate_available = test_cap.isOpened()
-        test_cap.release()
-
-        if not alternate_available:
-            # Leave the current feed completely untouched - just report it.
-            self.lbl_cam_status.config(text="No other camera detected", fg="red")
-            return
-
-        # Alternate camera confirmed available - now actually switch to it.
         was_on = self.is_camera_on
         self.is_camera_on = False
         if self.vid:
             self.vid.release()
             self.vid = None
 
+        self.lbl_cam_status.config(text="Switching Camera...", fg="blue")
+
+        # All the actual cv2.VideoCapture() calls happen in a background
+        # thread from here on. Opening a camera can block for a long time
+        # depending on the driver, and running it on the main thread is
+        # what was freezing the GUI. The background thread hands its result
+        # back via root.after(), which is the safe way to touch Tkinter
+        # widgets from another thread.
+        threading.Thread(
+            target=self._switch_camera_worker,
+            args=(self.camera_index, next_index, was_on),
+            daemon=True
+        ).start()
+
+    def _switch_camera_worker(self, current_index, next_index, was_on):
+        test_cap = cv2.VideoCapture(next_index)
+        alternate_available = test_cap.isOpened()
+        test_cap.release()
+
+        new_vid = None
+        fallback_vid = None
+
+        if alternate_available:
+            if was_on:
+                new_vid = cv2.VideoCapture(next_index)
+                if not new_vid.isOpened():
+                    new_vid.release()
+                    new_vid = None
+        else:
+            if was_on:
+                # Switch didn't happen - reopen the original camera so the feed comes back
+                fallback_vid = cv2.VideoCapture(current_index)
+                if not fallback_vid.isOpened():
+                    fallback_vid.release()
+                    fallback_vid = None
+
+        self.root.after(0, self._switch_camera_finish, next_index, was_on, alternate_available, new_vid, fallback_vid)
+
+    def _switch_camera_finish(self, next_index, was_on, alternate_available, new_vid, fallback_vid):
+        if not alternate_available:
+            self.lbl_cam_status.config(text="No other camera detected", fg="red")
+            if fallback_vid is not None:
+                self.vid = fallback_vid
+                self.is_camera_on = True
+                self.lbl_cam_status.config(text=f"Camera {self.camera_index} Active", fg="green")
+                self.update_frame()
+            self.switching_camera = False
+            return
+
         self.camera_index = next_index
 
         if was_on:
-            self.vid = cv2.VideoCapture(self.camera_index)
-            if self.vid.isOpened():
+            if new_vid is not None:
+                self.vid = new_vid
                 self.is_camera_on = True
                 self.lbl_cam_status.config(text=f"Camera {self.camera_index} Active", fg="green")
                 self.update_frame()
@@ -183,6 +296,8 @@ class MalariaGUI:
                 self.lbl_cam_status.config(text="Camera Not Detected", fg="red")
         else:
             self.lbl_cam_status.config(text=f"Camera {self.camera_index} Selected", fg="blue")
+
+        self.switching_camera = False
 
     def take_image(self):
     
@@ -195,7 +310,7 @@ class MalariaGUI:
             if ret:
                 if self.model is not None:
                     try:
-                        results = self.model(frame, verbose=False)
+                        results = self.model(frame, verbose=False, device=self.device)
                         annotated_frame = results[0].plot()
                         self.current_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                     except Exception:
