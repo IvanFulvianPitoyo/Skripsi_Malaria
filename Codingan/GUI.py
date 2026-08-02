@@ -130,11 +130,6 @@ class MalariaGUI:
         try:
             self.model = YOLO(file_path)
             self.model_path = file_path
-
-            # Some GPU / CUDA / PyTorch build combinations aren't compatible
-            # (this is what caused the earlier "no kernel image is available"
-            # error). Test on a tiny dummy image and fall back to CPU if the
-            # GPU can't actually run inference.
             self.device = "cpu"
             if torch.cuda.is_available():
                 try:
@@ -165,7 +160,6 @@ class MalariaGUI:
         if not file_path:
             return
 
-        # A static image is about to take over the view, so stop any live feed first
         if self.is_camera_on:
             self.stop_camera()
 
@@ -189,7 +183,6 @@ class MalariaGUI:
         else:
             self.current_frame = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-        # Reset zoom/rotation so the newly loaded image displays cleanly, then render it
         self.reset_view()
 
         image_name = os.path.basename(file_path)
@@ -221,8 +214,6 @@ class MalariaGUI:
         self.canvas.delete("all")
 
     def switch_camera(self):
-        # Ignore extra clicks while a switch is already in progress -
-        # avoids two threads racing on self.vid.
         if self.switching_camera:
             return
         self.switching_camera = True
@@ -237,12 +228,6 @@ class MalariaGUI:
 
         self.lbl_cam_status.config(text="Switching Camera...", fg="blue")
 
-        # All the actual cv2.VideoCapture() calls happen in a background
-        # thread from here on. Opening a camera can block for a long time
-        # depending on the driver, and running it on the main thread is
-        # what was freezing the GUI. The background thread hands its result
-        # back via root.after(), which is the safe way to touch Tkinter
-        # widgets from another thread.
         threading.Thread(
             target=self._switch_camera_worker,
             args=(self.camera_index, next_index, was_on),

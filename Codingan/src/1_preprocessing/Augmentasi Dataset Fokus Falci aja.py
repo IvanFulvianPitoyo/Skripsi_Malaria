@@ -5,7 +5,7 @@ import random
 from tqdm import tqdm
 
 # --- PASTIKAN PATH INI BENAR ---
-base_path = r"D:\DatasetMalaria1x1"
+base_path = r"D:\DatMataselaria1x1"
 images_dir = os.path.join(base_path, "images", "train")
 labels_dir = os.path.join(base_path, "labels", "train")
 
